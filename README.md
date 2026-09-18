@@ -1,0 +1,66 @@
+# Groundwork — local GUI grounding
+
+Groundwork is a local workspace for annotating browser screenshots, creating immutable datasets, training a small instruction-conditioned grounding model from random weights, evaluating checkpoints, and predicting one requested element. The application uses React/TypeScript, FastAPI, SQLite, and PyTorch. Screenshots and training data stay on your computer.
+
+This is a task-specific research tool. Training from scratch requires representative reviewed examples. A brief synthetic run verifies the workflow; it does not establish useful accuracy on real websites or unrestricted language understanding. The configured laptop has an Intel Core i5-13420H, 16 GB system RAM, and an NVIDIA GeForce RTX 5050 Laptop GPU with 8 GB VRAM; conservative settings also accommodate testing on smaller devices when their memory probe succeeds.
+
+## Windows setup
+
+Requirements: 64-bit Python 3.13, Node.js 22.12 or newer, and an NVIDIA driver compatible with the selected CUDA wheel for GPU training. CPU execution is supported for debugging and inference. Install dependencies while connected to the internet; running the application does not require a hosted model or external API.
+
+From PowerShell in this repository:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/setup.ps1
+powershell -ExecutionPolicy Bypass -File scripts/start.ps1
+```
+
+Open **http://127.0.0.1:8000**. The API reference is at **http://127.0.0.1:8000/docs**. The start script binds to loopback. Keep this local application on loopback: it has no account system or network authentication.
+
+For CPU-only installation:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/setup.ps1 -Device cpu
+```
+
+See [setup and troubleshooting](docs/setup.md) for manual commands and development mode. Exact dependency pins live in the requirements files and `frontend/package-lock.json`.
+
+## First workflow
+
+1. Configure element classes before versioning data. Upload screenshots under **Images & annotations**, or generate explicitly labeled synthetic examples for a demonstration.
+2. Draw visible elements, assign classes, and adjust their candidate click points. Create instructions, associate each instruction with an element, or mark its target absent. Save as drafts until you explicitly review them.
+3. Review complete, unambiguous examples. Set website, template-family, or collection-session groups so related screenshots stay together in a split.
+4. Under **Dataset versions**, validate and create a snapshot. Review split counts; small collections may not populate every split. Dataset snapshots copy the images and preserve annotation content.
+5. Under **Training**, select **Fresh model**, choose the dataset and settings, and start training. The worker runs separately from the web server. Use **Pause**, **Resume**, or **Stop** to control it.
+6. Select a checkpoint under **Evaluation** to inspect aggregate metrics and individual overlays. Under **Prediction**, upload a screenshot and enter an instruction. Download the result JSON or save a correction as a draft for review.
+7. To learn from additional data, review the combined old and new examples, create a new version, and choose **Retrain from weights**. This creates a new run and preserves its parent.
+
+**Resume** restores the same experiment from a training checkpoint. **Retrain** starts a new experiment from existing weights with a fresh optimizer and scheduler. **Fresh** starts all learned weights randomly. An inference export can initialize a retraining run; it cannot exactly resume a training run.
+
+Each screenshot card under **Images & annotations** has a **Delete image** action. Confirming removes the live image and its annotations; existing dataset snapshots, checkpoints, and training runs are preserved.
+
+## Verification
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q
+.venv\Scripts\python.exe scripts\smoke.py
+.venv\Scripts\python.exe scripts\smoke.py --device cpu
+```
+
+The smoke script uses its own temporary data directory. It generates synthetic data, validates and versions it, runs a real training process, pauses and restarts it, checks inference, exports weights, and starts a separate retraining run. It checks parent preservation. See [verification evidence](docs/verification.md) for the actual checks executed during implementation.
+
+Frontend checks run with `npm test` inside `frontend/`. The optional `node tests/ui_smoke.mjs` browser runner verifies the annotation-to-training-to-prediction workflow against a real GPU worker; see the verification report for its one-time Chromium installation step.
+
+## Project and storage
+
+| Path | Purpose |
+| --- | --- |
+| `frontend/` | React workspace and coordinate helpers |
+| `grounding/` | API, persistence, versioning, model, training, evaluation, inference |
+| `tests/` | Meaningful model, data, checkpoint, and API checks |
+| `scripts/` | Windows setup/start and isolated workflow smoke check |
+| `data/` | Default runtime SQLite database, uploads, versions, runs, and exports |
+
+Set `GROUNDING_DATA_DIR` to an absolute folder to choose another runtime location before starting the server. Back up that folder while training and the server are stopped. Existing snapshots do not change when you edit live annotations. Do not manually modify snapshot or checkpoint files.
+
+Further details: [architecture and metrics](docs/architecture.md), [JSONL import/export](docs/dataset-format.md), [resume and retraining](docs/training.md), and [supported behavior and limits](docs/limitations.md).

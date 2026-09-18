@@ -1,0 +1,23 @@
+# Architecture and metrics
+
+The React frontend edits normalized annotations and submits JSON to FastAPI. SQLite stores images, runs, versions, evaluations, and settings. Image files, immutable snapshots, run checkpoints, and inference exports live under the selected runtime directory. Training executes in a separate worker process; no hosted inference or upload service is involved.
+
+The model is intentionally compact and trained from scratch. A convolutional image encoder retains a spatial grid, explicit positional information identifies image locations, a training-split tokenizer indexes randomly initialized token embeddings, and a small GRU encodes instructions. Lightweight attention fuses the instruction with spatial visual features. Separate heads predict a valid normalized box, element class logits, and a target-presence logit. All learned weights are initialized randomly for a fresh run; no OCR, image encoder, language encoder, or weights are pretrained.
+
+The box head predicts four sigmoid fractions `(a,b,c,d)`. With `epsilon=1e-4`, it computes the lower corner as `(a,b)*(1-2*epsilon)` and the upper corner as `lower+epsilon+(1-lower-epsilon)*(c,d)`. The explicit minimum extent preserves strictly positive width and height even for saturated logits in float32. This parameterization guarantees ordered boxes inside the unit square instead of repairing invalid boxes after prediction.
+
+Training and inference share the same image preprocessing and tokenizer configuration saved in the checkpoint. Images are EXIF-transposed, RGB-converted, resized with bilinear interpolation to the configured square training resolution, and scaled from `[0,255]` to `[-1,1]`. Normalized boxes remain in the original screenshot coordinate system. This resizing can distort very wide/tall screenshots and discard small text; evaluate at representative screenshot sizes.
+
+Box and class losses apply only to positive examples. Bounding-box loss combines L1 and generalized IoU; classification uses cross-entropy; presence uses binary cross-entropy with logits across positive and absent examples. An all-absent batch has a valid presence loss and zero box/class contribution. The candidate predicted click point is the box center. The presence score is a sigmoid score, not a calibrated probability that clicking will succeed.
+
+## Evaluation interpretation
+
+Grounding success requires a positive target, an attempted prediction at the chosen presence threshold, the correct class, and box IoU at least 0.5. Abstaining on a positive target counts as a failure in overall positive grounding success. Box IoU and class accuracy are also reported separately, alongside presence precision/recall and false positives on absent examples.
+
+Coverage is the fraction of evaluated examples where the model attempts a prediction. Correctness among attempted predictions is reported separately from overall grounding success. Raising the threshold can improve selective correctness while reducing coverage; a model that abstains everywhere must not appear successful.
+
+Evaluation includes a constant mean-box/majority-class baseline computed from the chosen dataset's training split and a cyclic instruction-shift baseline. Similar predictions after instruction shifting can suggest that the model ignores the instruction; repeated instructions can remain unchanged by this simple diagnostic. These are diagnostics, not guarantees of generalization. Per-example success/failure overlays expose specific mistakes.
+
+Prediction latency includes image decoding, preprocessing, transfer, and forward computation, excluding checkpoint loading. Evaluation latency is the measured batch preprocessing/forward time divided by batch size. GPU peak allocated memory and process working-set/RSS memory are measured separately. Box IoU and class accuracy use raw predictions even on abstentions; overall grounding success still counts positive abstentions as failures. Empty metric denominators produce unavailable values, not fabricated zero-performance curves.
+
+Changing the evaluation threshold changes attempted predictions and associated metrics. Compare experiments on the same immutable test split and threshold. Avoid tuning on a final test split. A synthetic test split measures performance on the generator's patterns only.
