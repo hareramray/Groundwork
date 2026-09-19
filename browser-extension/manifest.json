@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Groundwork Local Browser Bridge",
+  "version": "1.0.0",
+  "description": "Connect this browser's existing tabs to your local screenshot-grounding CLI.",
+  "minimum_chrome_version": "120",
+  "permissions": ["debugger", "tabs", "storage", "alarms"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "background": {"service_worker": "background.js"},
+  "action": {"default_popup": "popup.html", "default_title": "Groundwork local browser bridge"},
+  "content_security_policy": {"extension_pages": "script-src 'self'; object-src 'none'"}
+}

@@ -39,6 +39,16 @@ See [setup and troubleshooting](docs/setup.md) for manual commands and developme
 
 Each screenshot card under **Images & annotations** has a **Delete image** action. Confirming removes the live image and its annotations; existing dataset snapshots, checkpoints, and training runs are preserved.
 
+## Use a trained model in your browser
+
+The local browser CLI loads your generated `.pt` file and runs screenshot-grounded commands or JSON task sequences. It lets you select a running Chrome/Edge browser and one of its open websites through the included extension, or attach to a local debugging endpoint. No external LLM or API key is needed.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/agent.ps1 --model "data\exports\YOUR_EXPORT_ID.pt"
+```
+
+Follow the [browser CLI guide](docs/browser-agent.md) to connect your browser, choose a tab, and use `find`, `click`, `type`, `press`, and `run`. The model locates elements; you supply the command sequence. The guide includes a local practice page, a sample task, and an isolated browser integration smoke check.
+
 ## Verification
 
 ```powershell
@@ -59,6 +69,8 @@ Frontend checks run with `npm test` inside `frontend/`. The optional `node tests
 | `grounding/` | API, persistence, versioning, model, training, evaluation, inference |
 | `tests/` | Meaningful model, data, checkpoint, and API checks |
 | `scripts/` | Windows setup/start and isolated workflow smoke check |
+| `browser-extension/` | Local bridge for selecting and controlling existing Chrome/Edge tabs |
+| `examples/` | Local browser practice page and repeatable CLI task |
 | `data/` | Default runtime SQLite database, uploads, versions, runs, and exports |
 
 Set `GROUNDING_DATA_DIR` to an absolute folder to choose another runtime location before starting the server. Back up that folder while training and the server are stopped. Existing snapshots do not change when you edit live annotations. Do not manually modify snapshot or checkpoint files.

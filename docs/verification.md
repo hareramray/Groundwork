@@ -81,3 +81,32 @@ node tests/ui_smoke.mjs
 ```
 
 The browser runner creates an isolated local dataset and retains screenshots/results under `test-results/`. It does not operate your normal browser profile or use your real screenshots.
+
+## Local browser CLI verification
+
+The new browser agent was checked against a disposable headless Chromium instance and the bundled loopback practice page, using Python Playwright 1.63.0. It did not operate existing user browser tabs.
+
+| Check | Result |
+| --- | --- |
+| Full Python regression suite | 210 passed in 37 seconds; final model-menu fix additionally passed all 26 CLI tests |
+| CDP integration with CPU inference | Passed: real saved `.pt` loading/inference, browser and tab selection, typing, Enter, model-grounded clicks, abstention, scrolling, and navigation |
+| CDP integration with this laptop's CUDA device | Passed the same workflow, including the actual CLI subprocess executing the JSON task |
+| High-DPI coordinates | Passed at device scale factor 2; screenshot dimensions match the CSS viewport scale, including pages with scrollbars |
+| Capture after scrolling | Fixed-position target pixels remained aligned after scrolling, and a fresh grounded click succeeded |
+| Loaded browser extension | Passed with the actual MV3 extension: popup token connection, running browser/tab listing and selection, screenshot inference, typing, Control+A/Backspace, Enter, click, abstention, scroll, and navigation |
+| Selected-tab boundaries and exit | Selected and unrelated tabs remained open after CDP detach and extension disconnect; unrelated content was unchanged |
+| Local reports | Before/after PNGs and JSONL action reports were produced; action text fields were omitted from the logs |
+| PowerShell entry point | `scripts/agent.ps1 --help` forwarded arguments and exited successfully |
+
+The `.pt` used by these integration checks is an explicitly labeled **constant-output fixture**, built with the real Groundwork architecture and export schema. Its center prediction is intentionally fixed. These checks establish that the saved-model-to-browser pipeline works; they do not establish learned accuracy or general task planning ability. Model quality must still be evaluated with independent reviewed screenshots from the intended websites. Page titles, URLs, or screenshots in real reports may contain entered text even though the action's `text` field is redacted.
+
+The high-DPI check exposed a scrollbar-width mismatch between the captured PNG and the CSS viewport. Both transports now clip screenshots to the exact reported viewport before converting normalized model coordinates to browser input coordinates.
+
+Retained reports from the passing checks are under `data/agent-smoke-verification/`, `data/agent-smoke-verification-cuda/`, and `data/agent-extension-smoke-verification/` (ignored runtime artifacts). Reproduce them with:
+
+```powershell
+.venv\Scripts\python.exe -m playwright install chromium
+.venv\Scripts\python.exe scripts/agent_smoke.py --output-dir data/agent-smoke-verification
+.venv\Scripts\python.exe scripts/agent_smoke.py --device cuda --output-dir data/agent-smoke-verification-cuda
+.venv\Scripts\python.exe scripts/agent_smoke.py --extension --output-dir data/agent-extension-smoke-verification
+```

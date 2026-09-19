@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Groundwork browser bridge</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <h1>Groundwork</h1>
+  <p>Connect this browser and its open websites to the local CLI.</p>
+  <form id="connection">
+    <label for="name">Browser name</label>
+    <input id="name" maxlength="80" placeholder="Edge — Personal" required>
+    <label for="url">Local bridge address</label>
+    <input id="url" value="http://127.0.0.1:8766" required spellcheck="false">
+    <label for="token">Session token from the CLI</label>
+    <input id="token" type="password" autocomplete="off" required spellcheck="false">
+    <div class="buttons">
+      <button type="submit" id="connect">Connect</button>
+      <button type="button" id="disconnect">Disconnect</button>
+    </div>
+  </form>
+  <p id="status" role="status" aria-live="polite">Checking connection…</p>
+  <p class="note">Only the tab selected in the CLI is controlled. Chrome or Edge shows a debugging banner during control. Disconnect detaches control and keeps your tabs open.</p>
+  <script src="popup.js"></script>
+</body>
+</html>

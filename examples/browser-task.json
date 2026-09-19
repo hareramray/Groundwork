@@ -1,0 +1,11 @@
+{
+  "name": "Local browser practice",
+  "steps": [
+    { "action": "navigate", "url": "http://127.0.0.1:8767/browser-demo.html" },
+    { "action": "find", "instruction": "message field" },
+    { "action": "type", "instruction": "message field", "text": "Hello from my local model" },
+    { "action": "press", "key": "Enter" },
+    { "action": "click", "instruction": "confirm message" },
+    { "action": "scroll", "dx": 0, "dy": 500 }
+  ]
+}

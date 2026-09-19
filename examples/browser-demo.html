@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Groundwork browser practice</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 220vh; background: #f1f5f9; color: #172238; font: 18px system-ui, sans-serif; }
+    header { position: absolute; top: 13vh; width: 100%; padding: 0 24px; text-align: center; }
+    header p { color: #526078; }
+    h1 { font-size: 30px; margin-bottom: 8px; }
+    .target { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(420px, 80vw); height: 60px; }
+    input, button { width: 100%; height: 60px; border: 2px solid #547199; border-radius: 12px; padding: 12px 18px; font: inherit; }
+    input:focus { outline: 4px solid #bed5ff; }
+    button { background: #254fba; color: white; border-color: #254fba; cursor: pointer; }
+    label { position: absolute; bottom: 76px; width: 100%; text-align: center; font-weight: 600; }
+    #result { position: fixed; left: 12%; right: 12%; top: 65%; text-align: center; color: #285342; }
+    footer { position: absolute; top: 165vh; padding: 0 10%; color: #526078; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Browser practice</h1>
+    <p>A local page for testing screenshot grounding and browser actions.</p>
+  </header>
+  <form id="message-form" class="target">
+    <label for="message">Message field</label>
+    <input id="message" name="message" autocomplete="off" placeholder="Type a practice message">
+  </form>
+  <div id="confirm-stage" class="target" hidden>
+    <button id="confirm" type="button">Confirm message</button>
+  </div>
+  <p id="result" role="status">Type a message and press Enter.</p>
+  <footer>Scroll check: you have reached the lower part of the practice page. No messages leave this page.</footer>
+  <script>
+    window.demoState = { typed: '', submitted: false, clicks: 0, scrollY: 0 };
+    document.getElementById('message-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      window.demoState.typed = document.getElementById('message').value;
+      window.demoState.submitted = true;
+      document.getElementById('message-form').hidden = true;
+      document.getElementById('confirm-stage').hidden = false;
+      document.getElementById('result').textContent = 'Ready to confirm: ' + window.demoState.typed;
+    });
+    document.getElementById('confirm').addEventListener('click', () => {
+      window.demoState.clicks += 1;
+      document.getElementById('result').textContent = 'Confirmed locally: ' + window.demoState.typed;
+    });
+    window.addEventListener('scroll', () => { window.demoState.scrollY = window.scrollY; });
+  </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+:root { color-scheme: light dark; font: 14px/1.45 system-ui, sans-serif; }
+body { width: 340px; margin: 0; padding: 20px; background: #f6f8fb; color: #1c2940; }
+h1 { font-size: 24px; margin: 0 0 4px; }
+p { margin: 0 0 16px; }
+label { display: block; font-weight: 600; margin: 12px 0 5px; }
+input { width: 100%; box-sizing: border-box; padding: 9px; border: 1px solid #9aa9bf; border-radius: 6px; background: #fff; color: #14243c; }
+input:focus { outline: 2px solid #2265d7; outline-offset: 1px; }
+.buttons { display: flex; gap: 8px; margin: 16px 0; }
+button { border: 1px solid #2265d7; border-radius: 6px; padding: 9px 14px; background: #2265d7; color: #fff; font: inherit; cursor: pointer; }
+#disconnect { color: #183653; background: #fff; border-color: #9aa9bf; }
+button:disabled { opacity: .5; cursor: wait; }
+#status { overflow-wrap: anywhere; font-weight: 600; }
+.note { font-size: 12px; color: #45566e; margin-bottom: 0; }
