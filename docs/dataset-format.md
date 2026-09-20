@@ -38,6 +38,10 @@ The default class list is `button`, `textbox`, `link`, `checkbox`, `dropdown`, `
 
 An uploaded image starts unannotated. Element annotations and instruction examples are distinct: an element may be referenced by many instructions. Saved examples remain drafts until explicitly reviewed. The image summary distinguishes unannotated, draft, reviewed, and excluded content. Missing instructions, invalid boxes, unknown classes, mismatched dimensions, and click points outside a box are errors.
 
+The annotation workspace's **Copy from image** action adds selected elements and their linked instructions from another saved screenshot to the current draft. It creates new element and instruction IDs and remaps their links, including multiple instructions for one element. Optional absent-target instructions retain a null target. Every copied instruction starts as a draft, with its ambiguity flag preserved. Copying leaves the source image unchanged and keeps the destination's existing annotations and group. The copied annotations are persisted only when you save the destination.
+
+Copying preserves normalized box and click-point coordinates, so they scale proportionally to the new screenshot dimensions. Responsive page layouts may put targets elsewhere: select each copied box, drag it into place, resize its corners, and verify the instruction before reviewing it. Numeric box fields also keep the click point inside the resized box. Use a shared group for related screenshots when you create dataset splits.
+
 Validation reports errors, warnings, review counts, class counts, absent-target counts, and split sizes. Only reviewed, nonambiguous, nonexcluded examples enter a new immutable snapshot. Adding or editing annotations later does not modify the snapshot or an existing run. Draft prediction corrections must be reviewed before versioning.
 
 ## Splits and immutability

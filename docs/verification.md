@@ -152,3 +152,22 @@ npx playwright install chromium
 Pop-Location
 node tests/extension_capture.mjs
 ```
+
+## Copying and resizing annotations
+
+Checked on September 20, 2026. All 11 frontend unit tests, 37 existing data/API tests, and the TypeScript/Vite production build passed. The new `node tests/ui_copy_annotations.mjs` browser runner passed against isolated local data.
+
+The browser check copied two elements and four instructions from an 800 × 500 screenshot into a 400 × 800 screenshot that already had a reviewed target and instruction. It verified new IDs and remapped links, draft status on every copied instruction, unchanged source records, preservation of existing destination annotations and an unsaved group edit, proportional coordinates, and no database changes until Save. A partial copy included only the selected element and its instruction and omitted absent-target examples.
+
+The same runner resized a copied box under 156% zoom, resized that corner again after its click point had clamped onto the handle, and checked numeric box edits keep the click point inside. It saved and reopened the result, verified cancellation and reselecting the current source, checked copying is disabled during a pending save, and inspected the dialog at width 390 with no horizontal overflow or browser errors. Selected resize handles now render above the click point so repeated corner drags continue to resize the box.
+
+Final artifacts are in `test-results/copy-annotations-1789881181257/`: `result.json`, `copied-resized.png`, and `copy-modal-mobile.png`. Reproduce after building the frontend:
+
+```powershell
+Push-Location frontend
+npm test
+npm run build
+Pop-Location
+.venv\Scripts\python.exe -m pytest -q tests/test_data_api.py
+node tests/ui_copy_annotations.mjs
+```

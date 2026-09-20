@@ -39,6 +39,8 @@ See [setup and troubleshooting](docs/setup.md) for manual commands and developme
 
 Each screenshot card under **Images & annotations** has a **Delete image** action. Confirming removes the live image and its annotations; existing dataset snapshots, checkpoints, and training runs are preserved.
 
+To reuse annotations, open the destination screenshot and choose **Copy from image**. Select a source screenshot, choose the elements to copy, and click **Add to this image**. Their linked instructions come with them; absent-target instructions can be included separately. Select a copied box and drag its corners to resize, or drag the box to move it, then **Save changes**. Boxes scale proportionally to the destination dimensions. Copies start as drafts and need review against the new image; existing annotations and the destination group are kept.
+
 ## Capture webpages at different resolutions
 
 Load the **`capture-extension/`** folder as an unpacked extension in Chrome or Edge. Open a webpage, click **Groundwork Dataset Capture**, select viewport sizes, and click **Capture selected sizes**. The page renders at each size and produces matching PNG screenshots. Export the capture ZIP, then choose **Images & annotations → Import capture ZIP** in the lab to start labeling it for training.
@@ -82,6 +84,8 @@ Frontend checks run with `npm test` inside `frontend/`. The optional `node tests
 Run `node tests/ui_chat.mjs` for the combined workflow. It uses isolated storage and a browser, trains a grounding model, teaches that model two greeting replies, stops and resumes a real CPU worker, checks both chat and grounding predictions, downloads the combined model, and verifies the mobile layout.
 
 Run `node tests/extension_capture.mjs` to test the installed capture extension in an isolated Chromium profile, including responsive PNG capture, page restoration, ZIP export, and lab import. The [capture guide](docs/capture-extension.md#developer-verification) lists setup and focused checks.
+
+Run `node tests/ui_copy_annotations.mjs` to verify copying annotations between differently sized screenshots, resizing copied boxes under zoom, saving/reloading their instruction links, and choosing a subset to copy.
 
 ## Project and storage
 
