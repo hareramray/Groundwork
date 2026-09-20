@@ -97,7 +97,7 @@ If a Triton CUDA-toolkit discovery warning is followed by `Loaded test.pt on cud
 | `screenshot` | Save the selected tab's current visible viewport. |
 | `find message field` | Predict a target and save its observation without clicking. |
 | `click confirm message` | Capture, predict, and click the predicted center. |
-| `type "Hello locally" into message field` | Predict the field, click it, replace its text, and type. |
+| `type "Hello locally" in message field` | Predict the field, click it, replace its text, and type. `into` also works. |
 | `press Enter` | Send a key to the selected tab's current focus. |
 | `press Control+A` | Send a key combination. |
 | `scroll down 500` | Scroll the selected viewport by 500 CSS pixels. |
@@ -108,6 +108,17 @@ If a Triton CUDA-toolkit discovery warning is followed by `Loaded test.pt on cud
 | `help` / `quit` | Show help / detach and exit. |
 
 Actions request confirmation by default. `--auto` explicitly enables executing your supplied commands or task sequence without per-action confirmation. A task stops when a step fails or the model abstains on an action that requires a target. A presence score is not a calibrated probability that a click will succeed.
+
+For typing, put the text in double quotes and describe the field after either `in` or `into`. All of these are accepted at the `groundwork>` prompt:
+
+```text
+type "apple" in the search textbox
+type "apple" into the search textbox
+type "apple" in "find the search field"
+type "apple" in the "find the search field"
+```
+
+Use a field description similar to the instructions you trained on. The `type` action already clicks the predicted field before entering text. Quotation marks around the field description are optional; `the` immediately before a quoted description is treated as a wrapper. Typed text uses JSON string escaping, such as `\"` for a literal quote and `\\` for a literal backslash. Restart an already running CLI session after updating the parser.
 
 Numbered browser and tab choices use `#1`, `#2`, and so on. Bare numeric values are actual browser/tab IDs, because extension tab IDs are numeric. On the command line quote a numbered choice, for example `--tab "#1"`. `--tab "id:123"` explicitly selects ID `123`.
 

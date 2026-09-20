@@ -103,3 +103,9 @@ Run `node tests/ui_copy_annotations.mjs` to verify copying annotations between d
 Set `GROUNDING_DATA_DIR` to an absolute folder to choose another runtime location before starting the server. Back up that folder while training and the server are stopped. Existing snapshots do not change when you edit live annotations. Do not manually modify snapshot or checkpoint files.
 
 Further details: [architecture and metrics](docs/architecture.md), [JSONL import/export](docs/dataset-format.md), [resume and retraining](docs/training.md), and [supported behavior and limits](docs/limitations.md).
+
+## License
+
+Copyright 2026 Hareram Ray.
+
+Licensed under the [Apache License, Version 2.0](LICENSE). See [NOTICE](NOTICE) for attribution.

@@ -115,19 +115,32 @@ def _unquote(text: str) -> str:
 
 def parse_command(command: str) -> Action:
     """Parse explicit REPL commands, never a natural-language plan or page content."""
-    verb, _, value = command.strip().partition(" ")
-    verb, value = verb.lower(), value.strip()
+    parts = command.strip().split(maxsplit=1)
+    verb, value = parts[0].lower() if parts else "", parts[1].strip() if len(parts) > 1 else ""
     if verb in {"find", "click", "assert_visible"}:
         return Action(action=verb, instruction=_unquote(value))
     if verb == "type":
+        usage = 'Use: type "text to enter" in|into instruction describing the field'
         try:
             text, end = json.JSONDecoder().raw_decode(value)
-        except (ValueError, json.JSONDecodeError) as exc:
-            raise ValueError('Use: type "text to enter" into instruction describing the field') from exc
-        tail = value[end:].strip()
-        if not isinstance(text, str) or not tail.startswith("into "):
-            raise ValueError('Use: type "text to enter" into instruction describing the field')
-        return Action(action="type", text=text, instruction=_unquote(tail[5:]))
+            target = value[end:].split(maxsplit=1)
+            if not isinstance(text, str) or len(target) != 2 or target[0].lower() not in {"in", "into"}:
+                raise ValueError(usage)
+            instruction = target[1].strip()
+            # Accept 'in the "search field"' without adding wrapper words/quotes
+            # to the model prompt; leave ordinary unquoted descriptions intact.
+            article = re.match(r'^the\s+(?=")', instruction, flags=re.IGNORECASE)
+            if article:
+                quoted = instruction[article.end():]
+                _, quoted_end = json.JSONDecoder().raw_decode(quoted)
+                if not quoted[quoted_end:].strip():
+                    instruction = quoted
+            instruction = _unquote(instruction)
+            if not instruction.strip():
+                raise ValueError(usage)
+        except ValueError as exc:
+            raise ValueError(usage) from exc
+        return Action(action="type", text=text, instruction=instruction)
     if verb == "press":
         return Action(action="press", key=value)
     if verb in {"open", "navigate"}:

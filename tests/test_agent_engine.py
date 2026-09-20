@@ -260,6 +260,73 @@ def test_command_parser(command, expected):
     assert parse_command(command).model_dump(exclude_unset=True) == expected
 
 
+TYPE_IN_FORMS = [
+    ('type "apple" in the search textbox', 'the search textbox'),
+    ('type "apple" in the textbox', 'the textbox'),
+    ('type "apple" in "find the search field and click on that"', 'find the search field and click on that'),
+    ('type "apple" in the "find the search field and click on that"', 'find the search field and click on that'),
+]
+
+
+@pytest.mark.parametrize("command,instruction", [
+    *TYPE_IN_FORMS,
+    ('type "apple" into the search textbox', 'the search textbox'),
+    ('type "apple"into field', 'field'),
+    ('type "apple"in field', 'field'),
+    ('  TYPE\t"apple"\tINTO\tTHE\t"search field"  ', 'search field'),
+    ('type "apple" IN   the   search textbox', 'the   search textbox'),
+    ('type "apple" in the "search \\"products\\" field"', 'search "products" field'),
+    ('type "apple" into the "Search" field', 'the "Search" field'),
+    ('type "apple" in the "Search" field', 'the "Search" field'),
+])
+def test_type_command_accepts_in_and_into_with_clean_target_instruction(command, instruction):
+    assert parse_command(command).model_dump(exclude_unset=True) == {
+        "action": "type", "text": "apple", "instruction": instruction,
+    }
+
+
+@pytest.mark.parametrize("separator", ["in", "into"])
+@pytest.mark.parametrize("text", [
+    "", "  padded text  ", 'hello "world" \\ path', "नमस्ते 😀",
+    "literal in field and into textbox", "first line\nsecond line\tvalue",
+])
+def test_type_command_preserves_json_text_exactly(separator, text):
+    command = f'type {json.dumps(text, ensure_ascii=False)} {separator} "Search box"'
+    parsed = parse_command(command)
+    assert parsed.text == text
+    assert parsed.instruction == "Search box"
+    assert parsed.replace is True
+
+
+@pytest.mark.parametrize("command", [
+    'type "x" in', 'type "x" into', 'type "x" in ""', 'type "x" in the ""',
+    'type "x" in "unfinished', 'type "x" in the "unfinished',
+    r'type "x" in the "field\q"',
+    'type "x" in "field" extra', 'type "unfinished in field', "type 'x' in field",
+    'type 123 in field', 'type true in field', 'type null in field', 'type [] in field',
+    'type "x" at field', 'type "x" on field', 'type "x" inside field',
+    'type "x" intox field', 'type "x" intothe field', 'type "x" infield',
+    'type "x" intoField', 'type "x" in"field"',
+])
+def test_type_command_rejects_missing_malformed_or_unsupported_parts(command):
+    with pytest.raises(ValueError):
+        parse_command(command)
+
+
+@pytest.mark.parametrize("command,instruction", TYPE_IN_FORMS)
+def test_user_type_in_forms_ground_once_click_once_and_redact_text(setup, command, instruction):
+    browser, model, engine = setup
+    result = engine.execute(parse_command(command))
+    assert result["status"] == "executed"
+    assert browser.actions == [("click", 200, 150), ("type", "apple", True)]
+    assert len(model.calls) == 1
+    assert model.calls[0][1] == instruction
+    assert result["action"]["instruction"] == instruction
+    assert result["action"]["text_length"] == 5
+    assert "text" not in result["action"]
+    assert "apple" not in engine.log_path.read_text(encoding="utf-8")
+
+
 @pytest.mark.parametrize("command", ["buy shoes", 'type no quotes into field', 'type "x"', "scroll down nan",
                                       "scroll down -1", "scroll diagonal 1", "press", "wait nan", "wait 61",
                                       "open javascript:alert(1)", 'click ""'])

@@ -266,3 +266,28 @@ def test_explicit_tab_is_required_for_ambiguous_unattended_browser(fake_hub, cap
     assert fake_hub.connection.selected is None
     assert "Multiple tabs" in capsys.readouterr().err
     assert fake_hub.closed
+
+
+@pytest.mark.parametrize("command,instruction", [
+    ('type "apple" in the search textbox', 'the search textbox'),
+    ('type "apple" in the textbox', 'the textbox'),
+    ('type "apple" in "find the search field and click on that"', 'find the search field and click on that'),
+    ('type "apple" in the "find the search field and click on that"', 'find the search field and click on that'),
+])
+def test_repl_dispatches_type_in_forms_to_engine(tmp_path, monkeypatch, capsys, command, instruction):
+    calls = []
+
+    class Engine:
+        def execute(self, action):
+            calls.append(action.model_dump(exclude_unset=True))
+            return {"status": "executed", "action": action.log_data()}
+
+    console = agent_cli.Console(agent_cli.parser().parse_args(["--output-dir", str(tmp_path)]), FakeHub())
+    monkeypatch.setattr(console, "get_engine", lambda: Engine())
+    assert console.command(command) is True
+    assert calls == [{"action": "type", "text": "apple", "instruction": instruction}]
+    result = json.loads(capsys.readouterr().out)
+    assert result["status"] == "executed"
+    assert result["action"]["instruction"] == instruction
+    assert result["action"]["text_length"] == 5
+    assert "text" not in result["action"]

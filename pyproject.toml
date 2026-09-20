@@ -2,6 +2,9 @@
 name = "groundwork-local"
 version = "1.0.0"
 description = "Local from-scratch browser screenshot grounding lab"
+authors = [{ name = "Hareram Ray" }]
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.11,<3.14"
 
 [tool.pytest.ini_options]

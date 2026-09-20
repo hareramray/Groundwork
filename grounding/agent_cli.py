@@ -22,7 +22,7 @@ HELP = '''Browser selection:
 Local actions (model required for find/click/type/assert_visible):
   find instruction                  Predict a target without clicking
   click instruction                 Predict then click
-  type "text" into instruction       Predict field, click, replace text
+  type "text" in|into instruction    Predict field, click, replace text
   press Enter                       Send key (also Tab, Control+A, etc.)
   scroll up|down|left|right [pixels]  Scroll visible page
   open https://example.com           Navigate the selected tab
