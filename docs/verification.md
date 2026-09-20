@@ -120,3 +120,35 @@ Retained reports from the passing checks are under `data/agent-smoke-verificatio
 .venv\Scripts\python.exe scripts/agent_smoke.py --device cuda --output-dir data/agent-smoke-verification-cuda
 .venv\Scripts\python.exe scripts/agent_smoke.py --extension --output-dir data/agent-extension-smoke-verification
 ```
+
+## Webpage capture extension verification
+
+Checked on September 20, 2026 using isolated data and a disposable Chromium profile. The actual unpacked `capture-extension/` used its `chrome.debugger` API against a generated localhost page.
+
+| Check | Result |
+| --- | --- |
+| Full Python regression suite | 268 passed in 125.58 seconds |
+| Capture ZIP import tests | 21 passed, included in the full suite: dimensions/pixels, grouping, unannotated state, malformed ZIPs, bounds, unsafe paths, EXIF orientation, and rollback of files and metadata when the second database insert fails |
+| Capture engine tests | 5 passed: settings bounds, viewport changes, cancellation, partial capture retention, and cleanup after failures |
+| Frontend unit tests and production build | 5 passed; TypeScript and Vite build passed |
+| Real extension capture | 1280 × 720 desktop PNG and 390 × 844 phone-width PNG had exact dimensions and different expected CSS breakpoint colors |
+| Page restoration | Original 942 × 804 viewport and scroll offset (0, 217) restored; a fresh debugger attachment succeeded afterward |
+| ZIP export and lab import | Downloaded ZIP decoded with Python/Pillow, imported through the lab UI, and displayed two grouped unannotated images with no instruction or element labels |
+| Saved history and deletion | Reload preserved both previews; dismissing deletion preserved the batch; confirming deletion removed its previews and disabled export |
+| Responsive layout | Extension and lab had no horizontal overflow at width 390; desktop and mobile screenshots inspected |
+| Browser errors | No JavaScript page errors |
+
+Final evidence is retained under `test-results/capture-extension-1789879603119/`, including `result.json`, the real exported ZIP, and desktop/mobile screenshots. The full Python suite emitted the existing two Starlette deprecation warnings and optional Triton CUDA-toolkit discovery warning. No model training or accuracy claims follow from this capture check.
+
+Reproduce after installing project dependencies:
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q tests/test_captures.py
+node --test tests/extension_capture_core.mjs
+Push-Location frontend
+npm test
+npm run build
+npx playwright install chromium
+Pop-Location
+node tests/extension_capture.mjs
+```

@@ -51,3 +51,40 @@ A tiny collection or a single group may leave validation or test empty. Such res
 Import adds editable image/annotation records to the local library. Existing example IDs are rejected rather than overwritten; an existing image ID can receive additional distinct examples only if its image bytes and group agree. Image IDs remain stable metadata identifiers; generated physical filenames protect distinct IDs from Windows case folding and reserved device names. IDs outside the documented ASCII policy are rejected before writing images.
 
 Create a new local snapshot after validation. Imported split labels and version identifiers describe the exported source; they do not silently attach the import to an existing immutable run. Import accepts at most 250 MB compressed, 500 MB expanded, and 10,000 entries; each image must be at most 40 MB and 40 megapixels. Duplicate ZIP member names, malformed JSON objects, invalid records, and unreadable images are rejected before the import commits annotations.
+
+## Webpage capture bundles
+
+The [Dataset Capture extension](capture-extension.md) exports raw, unannotated screenshots in a separate ZIP format. Use **Images & annotations → Import capture ZIP** or multipart `POST /api/captures/import` with field `file` for these bundles. A capture ZIP contains `manifest.json` and one PNG per entry under `images/`:
+
+```json
+{
+  "format": "groundwork-captures",
+  "schema_version": 1,
+  "id": "batch-example",
+  "name": "Account page",
+  "group": "example-account-template",
+  "created_at": "2026-09-20T12:00:00.000Z",
+  "captures": [
+    {
+      "id": "view-example",
+      "image_path": "images/view-example-390x844.png",
+      "width": 390,
+      "height": 844,
+      "viewport_width": 390,
+      "viewport_height": 844,
+      "device_scale_factor": 1,
+      "url": "https://example.com/account",
+      "title": "Account",
+      "captured_at": "2026-09-20T12:00:01.000Z",
+      "scroll_x": 0,
+      "scroll_y": 0
+    }
+  ]
+}
+```
+
+IDs use 1–100 ASCII letters, digits, underscores, or hyphens. The nonempty dataset group is at most 500 characters; the optional name is at most 160. Timestamps require a time zone. Capture URLs must be HTTP(S), up to 8192 characters, and titles are optional, up to 1000. Scroll offsets are finite nonnegative CSS pixel coordinates. Width and height are integer pixels from 240 through 4096 and must match the viewport dimensions and decoded PNG at device scale factor 1. PNGs must not contain EXIF rotation or mirroring.
+
+The importer accepts 1–8 screenshots with at most 40 million pixels combined, at most 40 MB per PNG, and 250 MB compressed or expanded across at most 64 ZIP entries. It rejects unsafe paths, duplicate names, duplicate capture IDs, missing or unreferenced files, malformed metadata, and unreadable/mismatched PNGs before writing images. It commits the batch metadata together and removes newly written files if persistence fails.
+
+Every imported image receives a new local ID, the bundle's `group`, its `capture_batch_id`, and a `capture` object containing the original entry. Captures remain `unannotated`, with empty `elements` and `examples`. The API returns `{ "images": 1, "batch_id": "batch-example", "group": "example-account-template" }`. Reimporting a bundle creates additional images. Annotate and review the captures before creating an ordinary dataset version; capture metadata is retained on live image records, while reviewed version exports use the JSONL schema above.

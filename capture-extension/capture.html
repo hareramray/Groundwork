@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dataset capture · Groundwork</title>
+  <link rel="stylesheet" href="capture.css">
+  <script type="module" src="capture.js"></script>
+</head>
+<body>
+  <header class="app-header"><a class="brand" href="capture.html" aria-label="Groundwork dataset capture"><span class="brand-mark" aria-hidden="true">g.</span><span>Groundwork<small>DATASET CAPTURE</small></span></a><span class="local-badge"><i></i>Saved on this device</span></header>
+  <main>
+    <div class="page-heading"><div><p class="eyebrow">COLLECT YOUR TRAINING DATA</p><h1>One page. Different screens.</h1><p>Capture your webpage at multiple viewport sizes, then annotate it in your training lab.</p></div><span class="step-tag">01 / COLLECT</span></div>
+    <div id="notice" class="notice error" role="alert" hidden></div>
+    <div class="workspace">
+      <section class="card settings-card" aria-labelledby="settings-title">
+        <div class="section-heading"><span class="section-number">1</span><div><h2 id="settings-title">Set up your capture</h2><p>Choose a page and the screen sizes you want to teach.</p></div></div>
+        <form id="capture-form">
+          <fieldset id="capture-settings" disabled>
+            <div class="field"><label for="source-tab">Source tab</label><div class="source-row"><select id="source-tab" required><option value="">Loading open webpages…</option></select><button type="button" id="refresh-tabs" class="button icon-button" title="Refresh tabs" aria-label="Refresh tabs">↻</button></div><p id="source-url" class="field-hint source-url">Choose an open webpage in this browser.</p></div>
+            <div class="form-grid"><div class="field"><label for="capture-name">Capture name</label><input id="capture-name" maxlength="160" required placeholder="For example, account settings"></div><div class="field"><label for="dataset-group">Dataset group</label><input id="dataset-group" maxlength="500" required placeholder="https://example.com/settings"><p class="field-hint">Keep related pages together when creating training splits.</p></div></div>
+            <div class="size-heading"><h3>Viewport sizes</h3><span id="size-summary" class="small muted"></span></div>
+            <div id="presets" class="preset-grid">
+              <label class="preset"><input type="checkbox" name="preset" value="1920x1080"><span><strong>1920 × 1080</strong><small>Large desktop</small></span><span class="screen-icon desktop" aria-hidden="true"></span></label>
+              <label class="preset"><input type="checkbox" name="preset" value="1366x768" checked><span><strong>1366 × 768</strong><small>Laptop</small></span><span class="screen-icon desktop" aria-hidden="true"></span></label>
+              <label class="preset"><input type="checkbox" name="preset" value="1280x720"><span><strong>1280 × 720</strong><small>Small desktop</small></span><span class="screen-icon desktop" aria-hidden="true"></span></label>
+              <label class="preset"><input type="checkbox" name="preset" value="768x1024" checked><span><strong>768 × 1024</strong><small>Tablet</small></span><span class="screen-icon tablet" aria-hidden="true"></span></label>
+              <label class="preset"><input type="checkbox" name="preset" value="390x844" checked><span><strong>390 × 844</strong><small>Phone</small></span><span class="screen-icon phone" aria-hidden="true"></span></label>
+            </div>
+            <div id="custom-sizes" class="custom-sizes" aria-label="Custom viewport sizes"></div>
+            <div class="custom-row"><div class="field"><label for="custom-width">Custom width</label><input type="number" id="custom-width" min="240" max="4096" step="1" placeholder="1440"></div><span class="multiply" aria-hidden="true">×</span><div class="field"><label for="custom-height">Custom height</label><input type="number" id="custom-height" min="240" max="4096" step="1" placeholder="900"></div><button type="button" class="button" id="add-size">Add size</button></div>
+            <p class="field-hint">240–4096 pixels per side. Up to 8 sizes and 40 million pixels per batch.</p>
+            <div class="field delay-field"><label for="settle-delay">Settle delay (ms)</label><input type="number" id="settle-delay" min="250" max="10000" step="1" value="750" required><p class="field-hint">Time for the layout to settle at each size. Increase this for slower pages.</p></div>
+            <div class="capture-note"><span aria-hidden="true">↔</span><p>The page will resize briefly while capturing. Keep the source page open until the batch finishes.</p></div>
+            <button type="submit" id="capture-start" class="button primary full">Capture selected sizes <span aria-hidden="true">↗</span></button>
+          </fieldset>
+        </form>
+      </section>
+      <aside class="capture-sidebar">
+        <section class="card batch-card" aria-labelledby="batch-title">
+          <div class="section-heading"><span class="section-number">2</span><div><h2 id="batch-title">Your capture batch</h2><p>Preview, save, and bring it into your lab.</p></div></div>
+          <div class="card-body"><div class="field"><label for="batch-history">Saved capture batches</label><select id="batch-history" disabled><option value="">No captures yet</option></select></div>
+            <div class="batch-heading"><h3 id="batch-name">Ready when you are</h3><span id="batch-status" class="status-badge">Ready</span></div>
+            <p id="batch-description" class="small muted">Your screenshots are saved locally as each size completes.</p>
+            <progress id="capture-progress" max="1" value="0" aria-label="Capture progress"></progress>
+            <div id="capture-progress-text" class="progress-text" role="status" aria-live="polite">Choose your page and capture sizes to begin.</div>
+            <button id="capture-cancel" class="button cancel-button" type="button" hidden>Cancel capture</button>
+            <div id="batch-errors" class="notice error" hidden></div>
+            <button id="export-zip" class="button primary full" type="button" disabled>Export capture ZIP <span aria-hidden="true">↓</span></button>
+            <p class="export-hint">PNG screenshots + capture metadata, together in one ZIP.</p>
+            <button id="delete-batch" class="button delete-batch" type="button" disabled>Delete batch</button>
+          </div>
+        </section>
+        <section class="next-step"><span class="eyebrow">NEXT: TEACH YOUR MODEL</span><h3>From capture to training</h3><ol><li>Export your capture ZIP.</li><li>In Groundwork, open <strong>Images &amp; annotations</strong> and choose <strong>Import capture ZIP</strong>.</li><li>Draw target boxes, add instructions, and review your examples before training.</li></ol><p>Captures start unannotated. You decide what the model should learn.</p></section>
+      </aside>
+    </div>
+    <section class="card results-card" aria-labelledby="results-title"><div class="section-heading"><div><p class="eyebrow">YOUR COLLECTION</p><h2 id="results-title">Captured screenshots</h2></div><span id="results-count" class="count-badge">0 images</span></div><div id="capture-results" class="results-grid"><div class="empty-results"><span class="empty-screen" aria-hidden="true"></span><h3>A view for every screen</h3><p>Your screenshots will appear here as each capture completes.</p></div></div></section>
+    <footer>Groundwork Dataset Capture <span>·</span> A local workspace for data you create.</footer>
+  </main>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Groundwork Dataset Capture",
+  "version": "1.0.0",
+  "description": "Capture webpages at multiple real viewport sizes for your local training dataset.",
+  "minimum_chrome_version": "120",
+  "permissions": ["debugger", "tabs"],
+  "background": {"service_worker": "background.js", "type": "module"},
+  "action": {"default_title": "Capture training screenshots"},
+  "content_security_policy": {"extension_pages": "script-src 'self'; object-src 'none'"}
+}

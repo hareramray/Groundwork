@@ -27,7 +27,7 @@ See [setup and troubleshooting](docs/setup.md) for manual commands and developme
 
 ## First workflow
 
-1. Configure element classes before versioning data. Upload screenshots under **Images & annotations**, or generate explicitly labeled synthetic examples for a demonstration.
+1. Configure element classes before versioning data. Upload screenshots under **Images & annotations**, [capture webpages at different resolutions](docs/capture-extension.md) and import their ZIP, or generate explicitly labeled synthetic examples for a demonstration.
 2. Draw visible elements, assign classes, and adjust their candidate click points. Create instructions, associate each instruction with an element, or mark its target absent. Save as drafts until you explicitly review them.
 3. Review complete, unambiguous examples. Set website, template-family, or collection-session groups so related screenshots stay together in a split.
 4. Under **Dataset versions**, validate and create a snapshot. Review split counts; small collections may not populate every split. Dataset snapshots copy the images and preserve annotation content.
@@ -38,6 +38,12 @@ See [setup and troubleshooting](docs/setup.md) for manual commands and developme
 **Resume** restores the same experiment from a training checkpoint. **Retrain** starts a new experiment from existing weights with a fresh optimizer and scheduler. **Fresh** starts all learned weights randomly. An inference export can initialize a retraining run; it cannot exactly resume a training run.
 
 Each screenshot card under **Images & annotations** has a **Delete image** action. Confirming removes the live image and its annotations; existing dataset snapshots, checkpoints, and training runs are preserved.
+
+## Capture webpages at different resolutions
+
+Load the **`capture-extension/`** folder as an unpacked extension in Chrome or Edge. Open a webpage, click **Groundwork Dataset Capture**, select viewport sizes, and click **Capture selected sizes**. The page renders at each size and produces matching PNG screenshots. Export the capture ZIP, then choose **Images & annotations → Import capture ZIP** in the lab to start labeling it for training.
+
+Presets cover desktop, tablet, and phone widths; you can also add custom sizes. Captures stay local, preserve their dataset group, and start unannotated. See the [installation and capture guide](docs/capture-extension.md).
 
 ## Teach your own chat replies
 
@@ -75,6 +81,8 @@ Frontend checks run with `npm test` inside `frontend/`. The optional `node tests
 
 Run `node tests/ui_chat.mjs` for the combined workflow. It uses isolated storage and a browser, trains a grounding model, teaches that model two greeting replies, stops and resumes a real CPU worker, checks both chat and grounding predictions, downloads the combined model, and verifies the mobile layout.
 
+Run `node tests/extension_capture.mjs` to test the installed capture extension in an isolated Chromium profile, including responsive PNG capture, page restoration, ZIP export, and lab import. The [capture guide](docs/capture-extension.md#developer-verification) lists setup and focused checks.
+
 ## Project and storage
 
 | Path | Purpose |
@@ -84,6 +92,7 @@ Run `node tests/ui_chat.mjs` for the combined workflow. It uses isolated storage
 | `tests/` | Meaningful model, data, checkpoint, and API checks |
 | `scripts/` | Windows setup/start and isolated workflow smoke check |
 | `browser-extension/` | Local bridge for selecting and controlling existing Chrome/Edge tabs |
+| `capture-extension/` | Standalone extension for collecting webpage PNGs at multiple viewport sizes |
 | `examples/` | Local browser practice page and repeatable CLI task |
 | `data/` | Default runtime SQLite database, uploads, versions, runs, and exports |
 

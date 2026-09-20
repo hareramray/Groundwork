@@ -20,6 +20,7 @@ HTTP API base `/api`; errors JSON `{detail:string|object}`:
 - POST /datasets/validate `{group_by:'group'|'image',seed:42}` => `{errors:[],warnings:[],stats:{...}}`.
 - GET /versions => manifests without records; POST /versions `{name,seed,group_by,train_ratio:0.7,val_ratio:0.15}` => manifest summary; GET /versions/{id} manifest.
 - GET /versions/{id}/export => ZIP JSONL + images + manifest. POST /datasets/import multipart `file` ZIP => report counts. JSONL format documented in docs.
+- POST /captures/import multipart `file` capture ZIP => `{images,batch_id,group}`. Adds unannotated images with original dimensions, a shared group, `capture_batch_id`, and `capture` metadata; no elements or examples are created. Bundle format documented in docs/dataset-format.md.
 - GET /training/defaults => config; GET /runs => run[]; POST /runs payload => starts run; GET /runs/{id}; POST /runs/{id}/{pause|resume|stop}; GET /runs/{id}/checkpoints; POST /runs/{id}/export `{checkpoint:'latest'}` => export info incl download_url; GET /exports; GET /exports/{id}/download.
 - POST /predict multipart `file,instruction,run_id,checkpoint,threshold` => prediction (also `image_id,image_url` stored upload). POST /predictions/correct `{image_id,instruction,class_id,bbox,click_point,target_present}` => draft example / image (open annotation editor to review).
 - POST /evaluate `{run_id,checkpoint,version_id,split,threshold}`; GET /evaluations; GET /evaluations/{id}.

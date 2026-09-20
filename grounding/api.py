@@ -217,6 +217,12 @@ def import_zip(file: Annotated[UploadFile, File()]):
     return dataset.import_dataset(file.file.read(250 * 1024 * 1024 + 1))
 
 
+@app.post('/api/captures/import')
+def import_capture_zip(file: Annotated[UploadFile, File()]):
+    from .captures import MAX_ARCHIVE_BYTES, import_captures
+    return import_captures(file.file.read(MAX_ARCHIVE_BYTES + 1))
+
+
 @app.get('/api/versions')
 def versions():
     return s.list_items('version')
