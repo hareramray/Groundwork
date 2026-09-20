@@ -39,6 +39,18 @@ See [setup and troubleshooting](docs/setup.md) for manual commands and developme
 
 Each screenshot card under **Images & annotations** has a **Delete image** action. Confirming removes the live image and its annotations; existing dataset snapshots, checkpoints, and training runs are preserved.
 
+## Teach your own chat replies
+
+Open **Training → Chat** to teach your existing grounding model to reply using examples you write yourself:
+
+1. Enter a user message such as `hey` and the reply you want, such as `Hey! How can I help you?`, then save the example. Add different messages and their desired replies. You can edit or delete examples before training.
+2. Select **Grounding model to train for chat**. Choose a saved grounding checkpoint, or a version you have already taught chat. Train a grounding model first if this list is empty.
+3. Give the experiment a name, choose the training settings, and click **Train chat model**. Each run saves its own copy of the source weights and your examples. The monitor shows measured loss and progress, with controls to stop and resume.
+4. Test its replies in the chat area, or choose the same version under **Prediction** to locate screenshot elements. **Download grounding + chat model** saves both abilities in one `.pt` file, also usable by the browser CLI for grounding.
+5. Add or correct examples and select your latest combined model as the source for another teaching run.
+
+The same `Grounder` now supports screenshot grounding and chat. Chat prompts reuse its existing text encoder, with a character embedding and reply decoder trained on your examples. Original grounding weights stay fixed during chat training, preserving its screenshot predictions. Training creates a new model version and keeps the parent checkpoint. Everything runs locally; each chat message is independent, and useful replies depend on the examples you teach.
+
 ## Use a trained model in your browser
 
 The local browser CLI loads your generated `.pt` file and runs screenshot-grounded commands or JSON task sequences. It lets you select a running Chrome/Edge browser and one of its open websites through the included extension, or attach to a local debugging endpoint. No external LLM or API key is needed.
@@ -60,6 +72,8 @@ Follow the [browser CLI guide](docs/browser-agent.md) to connect your browser, c
 The smoke script uses its own temporary data directory. It generates synthetic data, validates and versions it, runs a real training process, pauses and restarts it, checks inference, exports weights, and starts a separate retraining run. It checks parent preservation. See [verification evidence](docs/verification.md) for the actual checks executed during implementation.
 
 Frontend checks run with `npm test` inside `frontend/`. The optional `node tests/ui_smoke.mjs` browser runner verifies the annotation-to-training-to-prediction workflow against a real GPU worker; see the verification report for its one-time Chromium installation step.
+
+Run `node tests/ui_chat.mjs` for the combined workflow. It uses isolated storage and a browser, trains a grounding model, teaches that model two greeting replies, stops and resumes a real CPU worker, checks both chat and grounding predictions, downloads the combined model, and verifies the mobile layout.
 
 ## Project and storage
 

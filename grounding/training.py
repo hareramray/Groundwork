@@ -21,7 +21,8 @@ import psutil
 
 from . import storage
 from .dataset import verify_version
-from .ml import (ARCHITECTURE, PREPROCESSING, Grounder, Tokenizer, capture_rng, epoch_order,
+from .ml import (ARCHITECTURE, CHAT_ARCHITECTURE, SUPPORTED_ARCHITECTURES, PREPROCESSING,
+                 Grounder, Tokenizer, chat_vocabulary_size, capture_rng, epoch_order,
                  grounding_loss, make_batch, restore_rng, seed_everything)
 
 CHECKPOINT_SCHEMA = 1
@@ -89,14 +90,29 @@ def atomic_checkpoint(path: Path, payload: dict) -> None:
 
 def read_checkpoint(path: str | Path) -> dict:
     # Only locally generated checkpoints are accepted by API routes; never load arbitrary uploads.
-    checkpoint = torch.load(Path(path), map_location="cpu", weights_only=False)
-    if checkpoint.get("schema") != CHECKPOINT_SCHEMA or checkpoint.get("kind") not in {"training_checkpoint", "inference_export"}:
+    deadline = time.monotonic() + 3.0
+    while True:
+        try:
+            checkpoint = torch.load(Path(path), map_location="cpu", weights_only=False)
+            break
+        except PermissionError:
+            # A combined model can be read for grounding while chat saves latest.pt.
+            if os.name != "nt" or time.monotonic() >= deadline:
+                raise
+            time.sleep(0.01)
+    if checkpoint.get("schema") != CHECKPOINT_SCHEMA or checkpoint.get("kind") not in {"training_checkpoint", "inference_export", "grounding_chat_training_checkpoint"}:
         raise ValueError("Unsupported checkpoint format")
     return checkpoint
 
 
 def resolve_checkpoint(run_id: str, selection: str = "latest") -> Path:
-    run = storage.get("run", run_id)
+    try:
+        run = storage.get("run", run_id)
+    except KeyError:
+        from .chat import resolve_checkpoint as resolve_chat_checkpoint
+        if selection not in {"latest", "latest.pt"}:
+            raise ValueError("Select the latest checkpoint for a chat-trained grounding model")
+        return resolve_chat_checkpoint(run_id)
     filename = run.get(f"{selection}_checkpoint") if selection in {"latest", "best"} else selection
     if not filename:
         raise ValueError(f"No {selection} checkpoint is available yet")
@@ -115,8 +131,10 @@ def _update(run_id: str, **changes) -> dict:
     return storage.put("run", run_id, {**current, **changes})
 
 
-def _signature(config: dict, manifest: dict, tokenizer: dict, classes: list) -> dict:
-    return {"architecture": ARCHITECTURE, "preprocessing": PREPROCESSING, "config": config,
+def _signature(config: dict, manifest: dict, tokenizer: dict, classes: list, chat_tokenizer: dict | None = None) -> dict:
+    return {"architecture": CHAT_ARCHITECTURE if chat_tokenizer else ARCHITECTURE,
+            **({"chat_tokenizer": chat_tokenizer} if chat_tokenizer else {}),
+            "preprocessing": PREPROCESSING, "config": config,
             "dataset_version": manifest["id"], "dataset_fingerprint": manifest["fingerprint"],
             "split_ids": {split: [row["id"] for row in manifest["records"] if row["split"] == split]
                           for split in ("train", "val", "test")},
@@ -159,8 +177,9 @@ def create_run(payload: dict) -> dict:
             source_path = resolve_checkpoint(parent_id, payload.get("source_checkpoint", "latest"))
         parent = read_checkpoint(source_path)
         source_name = source_path.name
-        if parent.get("architecture") != ARCHITECTURE or parent.get("preprocessing") != PREPROCESSING:
+        if parent.get("architecture") not in SUPPORTED_ARCHITECTURES or parent.get("preprocessing") != PREPROCESSING:
             raise ValueError("Retraining source uses an unsupported architecture or preprocessing format")
+        chat_vocabulary_size(parent)
         if parent["classes"] != manifest["classes"]:
             raise ValueError("Retraining requires identical ordered class mappings; class expansion is not supported")
         requested_config = dict(requested_config)
@@ -177,19 +196,25 @@ def create_run(payload: dict) -> dict:
     run = {"id": run_id, "name": str(payload.get("name") or f"Grounder {run_id[:8]}")[:160],
            "version_id": manifest["id"], "mode": mode, "parent_run_id": parent_id,
            "source_checkpoint": source_name, "source_export_id": source_export_id,
-           "config": config, "architecture": ARCHITECTURE, "preprocessing": PREPROCESSING,
+           "config": config, "architecture": parent["architecture"] if parent else ARCHITECTURE,
+           "preprocessing": PREPROCESSING,
            "classes": manifest["classes"], "tokenizer": tokenizer.to_dict(),
            "status": "queued", "created_at": storage.now(), "progress": {}, "error": None,
            "latest_checkpoint": None, "best_checkpoint": None, "pid": None,
            "warnings": ([f"Frozen parent vocabulary: {len(unknown)} unseen words map to <unk>."] if unknown else []),
            "unknown_training_words": unknown[:100], "dataset_fingerprint": manifest["fingerprint"]}
-    run["signature"] = _signature(config, manifest, tokenizer.to_dict(), manifest["classes"])
+    if parent and parent.get("chat_tokenizer"):
+        run.update(chat_tokenizer=parent["chat_tokenizer"], capabilities=["grounding", "chat"])
+    run["signature"] = _signature(config, manifest, tokenizer.to_dict(), manifest["classes"], run.get("chat_tokenizer"))
     directory = _directory(run_id)
     directory.mkdir(parents=True, exist_ok=False)
     _json_atomic(directory / "experiment.json", run)
     if parent:
         # Copy the exact source weights into the new run; the parent is never modified.
         initial = {key: parent[key] for key in ("model", "tokenizer", "classes", "config")}
+        for key in ("architecture", "preprocessing", "chat_tokenizer"):
+            if key in parent:
+                initial[key] = parent[key]
         initial.update(schema=CHECKPOINT_SCHEMA, kind="inference_export")
         atomic_checkpoint(directory / "initial_weights.pt", initial)
     return storage.put("run", run_id, run)
@@ -232,6 +257,8 @@ def launch_run(run_id: str) -> dict:
 
 
 def _launch_run(run_id: str) -> dict:
+    from .chat import _reserved as chat_worker_reserved
+
     run = storage.get("run", run_id)
     if run["status"] == "completed":
         raise ValueError("This run completed its configured epochs. Create a retraining run to continue learning")
@@ -240,10 +267,12 @@ def _launch_run(run_id: str) -> dict:
     for other in storage.list_items("run"):
         if other["id"] != run_id and other["status"] in {"running", "queued"} and _worker_alive(other):
             raise ValueError("Another training worker is active. Pause or stop it before starting this run")
+    if any(chat_worker_reserved(other) for other in storage.list_items("chat_run")):
+        raise ValueError("A chat training worker is active. Stop it before starting this run")
     # Fail early before a process is launched if the dataset or experiment was edited.
     manifest = verify_version(run["version_id"])
     original = json.loads((_directory(run_id) / "experiment.json").read_text(encoding="utf-8"))
-    expected = _signature(run["config"], manifest, run["tokenizer"], run["classes"])
+    expected = _signature(run["config"], manifest, run["tokenizer"], run["classes"], run.get("chat_tokenizer"))
     if expected != original["signature"]:
         raise ValueError("The run's immutable experiment configuration changed; create a new run")
     if run.get("latest_checkpoint"):
@@ -291,7 +320,15 @@ def _control(run_id: str) -> str | None:
 
 
 def list_checkpoints(run_id: str) -> list[dict]:
-    run = storage.get("run", run_id)
+    try:
+        run = storage.get("run", run_id)
+    except KeyError:
+        run = storage.get("chat_run", run_id)
+        if not run.get("latest_checkpoint") or run.get("architecture") != CHAT_ARCHITECTURE:
+            return []
+        path = resolve_checkpoint(run_id)
+        return [{"filename": path.name, "size_bytes": path.stat().st_size,
+                 "latest": True, "best": False, "kind": "grounding_chat_training_checkpoint"}]
     result = []
     for path in sorted((_directory(run_id) / "checkpoints").glob("*.pt"), reverse=True):
         meta_path = path.with_suffix(".json")
@@ -307,6 +344,8 @@ def export_model(run_id: str, checkpoint: str = "latest") -> dict:
     source = read_checkpoint(path)
     export_id = storage.uid()
     exported = {key: source[key] for key in ("model", "tokenizer", "classes", "config", "architecture", "preprocessing")}
+    if source.get("chat_tokenizer"):
+        exported.update(chat_tokenizer=source["chat_tokenizer"], capabilities=["grounding", "chat"])
     exported.update(kind="inference_export", schema=CHECKPOINT_SCHEMA, run_id=run_id,
                     source_checkpoint=path.name, created_at=storage.now())
     relative_path = f"exports/{export_id}.pt"
@@ -394,7 +433,7 @@ def run_worker(run_id: str, *, stop_after_steps: int | None = None) -> dict:
     try:
         config = run["config"]
         manifest = verify_version(run["version_id"])
-        expected = _signature(config, manifest, run["tokenizer"], run["classes"])
+        expected = _signature(config, manifest, run["tokenizer"], run["classes"], run.get("chat_tokenizer"))
         original = json.loads((directory / "experiment.json").read_text(encoding="utf-8"))
         if expected != original["signature"]:
             raise ValueError("Immutable experiment was modified; exact resume is refused")
@@ -403,7 +442,13 @@ def run_worker(run_id: str, *, stop_after_steps: int | None = None) -> dict:
         tokenizer = Tokenizer.from_dict(run["tokenizer"])
         training = [row for row in manifest["records"] if row["split"] == "train"]
         validation = [row for row in manifest["records"] if row["split"] == "val"]
-        model = Grounder(len(tokenizer.vocabulary), len(run["classes"]), config).to(device)
+        chat_size = chat_vocabulary_size(run)
+        model = Grounder(len(tokenizer.vocabulary), len(run["classes"]), config, chat_size).to(device)
+        if chat_size:
+            # Grounding updates may change vision/grounding heads and word embeddings.
+            # Keep the shared recurrent encoder and reply branch stable for chat.
+            for module in (model.text_encoder, model.chat_embedding, model.chat_decoder, model.chat_output):
+                module.requires_grad_(False)
         optimizer, scheduler = _optimizer(model, config, len(training))
         scaler = torch.amp.GradScaler("cuda", init_scale=1024.0,
                                     enabled=config["mixed_precision"] and device.type == "cuda")
@@ -437,7 +482,9 @@ def run_worker(run_id: str, *, stop_after_steps: int | None = None) -> dict:
                        "rng": capture_rng(), "epoch": epoch, "cursor": cursor, "global_step": global_step,
                        "best_metric": best_metric, "validation": validation_metrics, "signature": expected,
                        "tokenizer": tokenizer.to_dict(), "classes": run["classes"], "config": config,
-                       "architecture": ARCHITECTURE, "preprocessing": PREPROCESSING,
+                       "architecture": run["architecture"], "preprocessing": PREPROCESSING,
+                       **({"chat_tokenizer": run["chat_tokenizer"], "capabilities": ["grounding", "chat"]}
+                          if chat_size else {}),
                        "dataset_version": manifest["id"], "created_at": storage.now(),
                        "execution": {"device": str(device), "torch": torch.__version__, "mixed_precision": scaler.is_enabled()}}
             path = directory / "checkpoints" / filename

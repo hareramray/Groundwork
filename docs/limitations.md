@@ -1,6 +1,7 @@
 # Supported behavior and limitations
 
-- The task is one requested visible element per instruction. The model does not discover every element or execute browser actions.
+- Screenshot grounding predicts one requested visible element per instruction. That model does not discover every element or execute browser actions.
+- Chat training adds a reply branch to the same grounding model and reuses its text encoder. Original grounding weights are frozen during chat training. It learns single-message replies from your examples without conversation memory. Training loss measures fit to your examples, not accuracy on unseen conversations; add examples and test different messages to assess its behavior.
 - No pretrained weights or OCR are used. Small from-scratch models need enough representative examples and may struggle with text reading, unseen wording, tiny controls, or unfamiliar page layouts.
 - The target-presence score is an uncalibrated model score. A high score does not prove the box is correct or a click will be safe or successful.
 - Predicted click points are box centers. Human annotation points are stored and validated, but the initial model does not learn a separate click-point head.

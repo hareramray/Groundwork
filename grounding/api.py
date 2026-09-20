@@ -24,7 +24,9 @@ inference_lock = threading.Lock()
 async def lifespan(app):
     s.init_db()
     from .training import recover_runs
+    from .chat import recover_runs as recover_chat_runs
     recover_runs()
+    recover_chat_runs()
     yield
 
 
@@ -103,6 +105,24 @@ class RunPayload(Strict):
 
 class ExportPayload(Strict):
     checkpoint: str = 'latest'
+
+
+class ChatExamplePayload(Strict):
+    prompt: str = Field(min_length=1, max_length=500)
+    response: str = Field(min_length=1, max_length=500)
+
+
+class ChatRunPayload(Strict):
+    name: str = Field('My chat model', max_length=160)
+    config: dict = Field(default_factory=dict)
+    source_run_id: str | None = None
+    source_chat_run_id: str | None = None
+    source_checkpoint: str = 'latest'
+
+
+class ChatPredictionPayload(Strict):
+    run_id: str
+    message: str = Field(min_length=1, max_length=500)
 
 
 class EvaluationPayload(ExportPayload):
@@ -338,6 +358,90 @@ def image_file(relative: str):
     if path.suffix.lower() not in {'.png', '.jpg', '.jpeg', '.webp'} or not path.is_file():
         raise HTTPException(404, 'Image not found')
     return FileResponse(path)
+
+
+@app.get('/api/chat/examples')
+def chat_examples():
+    return s.list_items('chat_example')
+
+
+@app.post('/api/chat/examples')
+def create_chat_example(payload: ChatExamplePayload):
+    from .chat import save_example
+    return save_example(payload.model_dump())
+
+
+@app.put('/api/chat/examples/{example_id}')
+def update_chat_example(example_id: str, payload: ChatExamplePayload):
+    from .chat import save_example
+    return save_example(payload.model_dump(), example_id=example_id)
+
+
+@app.delete('/api/chat/examples/{example_id}')
+def delete_chat_example(example_id: str):
+    from .chat import delete_example
+    delete_example(example_id)
+    return {'deleted': example_id}
+
+
+@app.get('/api/chat/training/defaults')
+def chat_training_defaults():
+    from .chat import default_config
+    return default_config()
+
+
+@app.get('/api/chat/runs')
+def chat_runs():
+    from .chat import recover_runs
+    recover_runs()
+    return s.list_items('chat_run')
+
+
+@app.get('/api/chat/sources')
+def chat_model_sources():
+    from .chat import sources
+    return sources()
+
+
+@app.post('/api/chat/runs')
+def create_chat_run(payload: ChatRunPayload):
+    from .chat import create_run, launch_run
+    run = create_run(payload.model_dump())
+    try:
+        return launch_run(run['id'])
+    except (ValueError, OSError) as exc:
+        s.patch('chat_run', run['id'], {'status': 'error', 'error': str(exc), 'pid': None})
+        raise ValueError(f'Could not launch chat training: {exc}') from exc
+
+
+@app.get('/api/chat/runs/{run_id}')
+def get_chat_run(run_id: str):
+    from .chat import recover_runs
+    recover_runs()
+    return s.get('chat_run', run_id)
+
+
+@app.get('/api/chat/runs/{run_id}/download')
+def download_chat_model(run_id: str):
+    from .chat import export_path
+    with inference_lock:
+        path = export_path(run_id)
+    return FileResponse(path, filename=f'chat-{run_id}.pt', media_type='application/octet-stream')
+
+
+@app.post('/api/chat/runs/{run_id}/{action}')
+def control_chat_run(run_id: str, action: str):
+    from .chat import control_run
+    if action not in ('stop', 'resume'):
+        raise HTTPException(404, 'Unknown chat training action')
+    return control_run(run_id, action)
+
+
+@app.post('/api/chat/predict')
+def chat_predict(payload: ChatPredictionPayload):
+    from .chat import predict
+    with inference_lock:
+        return predict(payload.run_id, payload.message)
 
 
 # Installed frontend assets are served by this same loopback process.

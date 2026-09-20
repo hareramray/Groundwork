@@ -2,6 +2,16 @@
 
 Verified locally on 2026-09-19. These are software acceptance checks using synthetic images, not evidence of accuracy on real websites.
 
+## Unified grounding and chat training (2026-09-20)
+
+- The unified chat suite passed all 29 tests. The combined Python run passed 246 tests; one existing browser-runtime test observed a changing browser viewport height and passed when rerun alone (1 passed in 3.47 seconds). No browser-runtime code was changed.
+- CPU and CUDA greeting checks: after 200 chat epochs on a real grounding checkpoint, the same model reproduced `hey` → `Hello!` and `bye` → `Goodbye!`. CUDA selected the RTX 5050, completed in 11.33 seconds, and reached training loss 0.00299. This checks learning on supplied examples, not general conversation quality.
+- Every original grounding tensor and the parent checkpoint hash remained unchanged. Grounding predictions before and after chat teaching matched exactly. Hooks verified both tasks use the same text encoder. The combined export loaded in one `FileGrounder` instance for both `predict` and `chat`, and a further grounding retraining run retained the learned replies.
+- Other checks cover example/API validation, required model sources, immutable teaching snapshots, character-vocabulary expansion when continuing a combined model, exact CPU model/optimizer recovery after stop/resume, stale workers, and stopping before any learning update.
+- Production TypeScript/Vite build and all five frontend unit tests passed.
+- Windows concurrent checkpoint reads and replacements reproduced a sharing violation. Bounded retries fixed it; a stress check completed 100 atomic writes alongside 508 validated reads. Each model download now receives its own immutable export file.
+- `node tests/ui_chat.mjs` checks the real API and CPU worker: train a grounding source, select it for chat, save examples, stop/resume, generate taught replies, preserve grounding predictions, download both abilities in one file, retain saved data after reload, and render at 1440- and 390-pixel widths. The completed browser run had no horizontal overflow or browser errors, and its screenshots were visually reviewed.
+
 ## Environment
 
 - Windows laptop, Intel Core i5-13420H, 8 cores / 12 logical processors, 15.7 GiB usable system RAM.

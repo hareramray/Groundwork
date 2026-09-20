@@ -13,7 +13,7 @@ from PIL import Image, ImageOps
 
 from . import storage
 from .dataset import verify_version
-from .ml import ARCHITECTURE, PREPROCESSING, Grounder, Tokenizer, box_iou_giou, make_batch, preprocess_image
+from .ml import SUPPORTED_ARCHITECTURES, PREPROCESSING, Grounder, Tokenizer, chat_vocabulary_size, box_iou_giou, make_batch, preprocess_image
 from .training import read_checkpoint, resolve_checkpoint, select_device
 
 INFERENCE_LOCK = threading.Lock()
@@ -62,14 +62,15 @@ def _check_threshold(threshold: float) -> float:
 def load_model(run_id: str, selection: str = "latest"):
     path = resolve_checkpoint(run_id, selection)
     checkpoint = read_checkpoint(path)
-    if checkpoint.get("architecture") != ARCHITECTURE or checkpoint.get("preprocessing") != PREPROCESSING:
+    if checkpoint.get("architecture") not in SUPPORTED_ARCHITECTURES or checkpoint.get("preprocessing") != PREPROCESSING:
         raise ValueError("This model uses an unsupported architecture or preprocessing format")
     inference_config = dict(checkpoint["config"])
     if not torch.cuda.is_available():
         inference_config["device"] = "cpu"
     device = select_device(inference_config)
     tokenizer = Tokenizer.from_dict(checkpoint["tokenizer"])
-    model = Grounder(len(tokenizer.vocabulary), len(checkpoint["classes"]), checkpoint["config"]).to(device)
+    model = Grounder(len(tokenizer.vocabulary), len(checkpoint["classes"]), checkpoint["config"],
+                     chat_vocabulary_size(checkpoint)).to(device)
     model.load_state_dict(checkpoint["model"])
     model.eval()
     return model, tokenizer, checkpoint, device, path

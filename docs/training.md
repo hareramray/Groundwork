@@ -1,5 +1,23 @@
 # Training, resume, and retraining
 
+## Chat training
+
+The **Chat** mode inside **Training** lets you write your own message/reply pairs, train on them, and test generated responses. No examples are added automatically. Start with short, consistent pairs such as `hey` → `Hello!` and `bye` → `Goodbye!`, then add variations in the way a user might phrase each message. Each field accepts up to 500 characters.
+
+Save your examples, select **Grounding model to train for chat**, name the experiment, and start training. The source is the latest saved checkpoint of a grounding model or an earlier grounding + chat version. The defaults are 200 epochs, batch size 16, learning rate 0.003, seed 42, and automatic CPU/CUDA selection. You can choose CPU explicitly. Training runs in a separate process, and the lab displays actual epoch, update, and loss values. A lower training loss measures fit to the saved examples; test your own unseen messages to assess how well the replies generalize.
+
+Chat training extends the existing `Grounder` with a character embedding and reply decoder. Chat prompts pass through the same `text_encoder` used by grounding instructions. The original grounding parameters stay frozen; the chat embedding, decoder, and output head learn from your examples. One state dictionary and export contain both tasks. An earlier combined model can initialize another chat run; existing character IDs and learned response weights are retained, with additional characters appended as needed.
+
+Each experiment captures the source weights and all currently saved chat examples. The parent remains unchanged. Editing or deleting examples later does not change an existing run. To learn from changed examples, start a new experiment from your latest combined version. Stop saves training state; resume continues with the original source, examples, and settings. Keep earlier examples when adding new ones to help retain earlier replies.
+
+Choose a run with a trained checkpoint in the chat tester. Replies are generated from learned weights, and every message is processed independently without conversation history. Unknown characters are reported by the tester. The model learns only from the examples you supply, so a small collection can teach greetings and simple responses but does not create a general-purpose assistant.
+
+Use **Download grounding + chat model** to save both tasks as one `.pt` inference export. Select the same version in **Prediction** for screenshots, or load the file through the browser CLI. The Python `FileGrounder` loader exposes both `predict(png_bytes, instruction)` and `chat(message)` on that same loaded model. Artifacts and teaching histories live under `chat/runs/`; exports also appear in the model library. Grounding retraining from a combined export retains the reply branch and freezes the shared text encoder to preserve chat replies.
+
+Earlier standalone chat runs remain on disk and are marked as legacy in the lab. To teach the combined model, select a grounding checkpoint and reuse your saved examples. Legacy chat weights cannot initialize the combined architecture.
+
+## Screenshot-grounding training
+
 | Action | Learned parameters | Optimizer and scheduler | Dataset | Identity |
 | --- | --- | --- | --- | --- |
 | Fresh model | Random initialization | New | Selected immutable version | New run |

@@ -19,7 +19,8 @@ import torch
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .inference import INFERENCE_LOCK, format_prediction, process_memory_mb
-from .ml import ARCHITECTURE, PREPROCESSING, Grounder, Tokenizer, preprocess_image
+from .ml import (SUPPORTED_ARCHITECTURES, PREPROCESSING, Grounder, Tokenizer,
+                 chat_vocabulary_size, generate_chat_reply, preprocess_image)
 from .training import CHECKPOINT_SCHEMA, select_device, validate_config
 
 
@@ -59,10 +60,10 @@ def _load_file(path: Path, trust_checkpoint: bool) -> tuple[dict, str, str]:
 
 def _validate_metadata(state: dict) -> tuple[dict, Tokenizer, list[str]]:
     if type(state.get("schema")) is not int or state["schema"] != CHECKPOINT_SCHEMA or not isinstance(state.get("kind"), str) or state["kind"] not in {
-        "training_checkpoint", "inference_export"
+        "training_checkpoint", "inference_export", "grounding_chat_training_checkpoint"
     }:
         raise ValueError("Unsupported checkpoint format: select a generated training checkpoint or inference export")
-    if state.get("architecture") != ARCHITECTURE or state.get("preprocessing") != PREPROCESSING:
+    if state.get("architecture") not in SUPPORTED_ARCHITECTURES or state.get("preprocessing") != PREPROCESSING:
         raise ValueError("Unsupported checkpoint architecture or preprocessing format")
     for key in ("config", "tokenizer", "classes", "model"):
         if key not in state:
@@ -99,7 +100,7 @@ def _build_model(state: dict, config: dict, tokenizer: Tokenizer, classes: list[
     # Construct shape references without initializing random parameters or
     # allocating a second copy of a potentially large embedding table.
     with torch.device("meta"):
-        model = Grounder(len(tokenizer.vocabulary), len(classes), config)
+        model = Grounder(len(tokenizer.vocabulary), len(classes), config, chat_vocabulary_size(state))
     expected = model.state_dict()
     if set(values) != set(expected):
         missing, extra = sorted(set(expected) - set(values)), sorted(set(values) - set(expected))
@@ -155,6 +156,7 @@ class FileGrounder:
                 raise ValueError(f"Unable to read generated .pt checkpoint: {error}") from error
             self.config, self.tokenizer, self.classes = _validate_metadata(state)
             self.model = _build_model(state, self.config, self.tokenizer, self.classes, self.device)
+            self.chat_tokenizer = copy.deepcopy(state.get("chat_tokenizer"))
         # Retain inference data only; optimizer, RNG, and other training state are
         # released once initialization returns.
         self._metadata = {
@@ -164,12 +166,21 @@ class FileGrounder:
             "checkpoint_size_bytes": self.path.stat().st_size, "run_id": state.get("run_id"),
             "device": str(self.device), "load_mode": load_mode,
             "vocabulary_size": len(self.tokenizer.vocabulary), "load_latency_ms": (time.perf_counter() - started) * 1000,
+            "capabilities": ["grounding", "chat"] if self.chat_tokenizer else ["grounding"],
             "score_description": "Target-presence score; not a calibrated click-success probability",
         }
 
     @property
     def metadata(self) -> dict:
         return copy.deepcopy(self._metadata)
+
+    def chat(self, message: str) -> dict:
+        """Generate a reply using the same loaded model used by ``predict``."""
+        if self.chat_tokenizer is None:
+            raise ValueError("This grounding model has not been trained for chat yet")
+        with INFERENCE_LOCK:
+            return {**generate_chat_reply(self.model, self.chat_tokenizer, message),
+                    "run_id": self._metadata["run_id"], "checkpoint": self.path.name}
 
     def predict(self, png_bytes: bytes, instruction: str, threshold: float | None = None) -> dict:
         chosen_threshold = self.threshold if threshold is None else _threshold(threshold)

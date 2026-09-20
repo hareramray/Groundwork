@@ -26,3 +26,14 @@ HTTP API base `/api`; errors JSON `{detail:string|object}`:
 - GET /files/{path:path} image restricted beneath ROOT (only image files), snapshots use image_url `/api/files/<image_path>`.
 
 Frontend React/TS Vite in frontend/, API proxy localhost:8000, build served by FastAPI at /. Dependency versions pinned + lock. Annotation SVG viewBox original dimensions with normalized state supports pointer draw/move/resize/clickpoint, zoom/pan. UI no fictitious metrics. Use API contracts, allow API adjustments via coordination.
+
+Chat training teaches the same `ml.Grounder` selected from an existing grounding checkpoint. `grounding.chat` owns text examples, immutable teaching runs, workers, checkpoints, and generation. The combined architecture `cnn-gru-grounding-chat-v2` reuses `text_encoder` and adds `chat_embedding`, `chat_decoder`, and `chat_output`; chat training freezes original grounding weights. Checkpoints use kind `grounding_chat_training_checkpoint`, with grounding `config`, word `tokenizer`, `classes`, plus `chat_tokenizer` and `chat_training_config`. Storage kinds `chat_example`/`chat_run` record teaching history; artifacts live under `ROOT/chat/runs/`. Combined inference exports use standard `inference_export` kind, appear in the export library, and support both tasks in `FileGrounder`. Chat and grounding share one active training-worker limit.
+
+Chat HTTP API:
+- GET/POST `/api/chat/examples`; PUT/DELETE `/api/chat/examples/{id}`. Write body `{prompt,response}`; both nonempty after trimming, at most 500 characters. Example `{id,prompt,response,created_at,updated_at}`.
+- GET `/api/chat/training/defaults` returns `{epochs,batch_size,learning_rate,device,seed}`.
+- GET `/api/chat/sources` lists saved grounding and combined sources `{id,name,kind:'grounding'|'chat',status,latest_checkpoint,capabilities}`.
+- GET/POST `/api/chat/runs`; POST body `{name,config,source_run_id?|source_chat_run_id?,source_checkpoint:'latest'}` requires exactly one source, copies its weights, and snapshots saved examples. GET `/api/chat/runs/{id}` returns run `{id,name,config,grounding_config,source_run_id,source_chat_run_id,source_checkpoint,capabilities,status,created_at,example_count,progress:{epoch,global_step,loss,elapsed_seconds},error,latest_checkpoint,...}`. Run config is chat settings; checkpoint config is grounding settings.
+- POST `/api/chat/runs/{id}/stop` or `/resume`; stopping saves progress, resuming uses original examples/settings.
+- POST `/api/chat/predict` body `{run_id,message}` returns `{reply,run_id,checkpoint,unknown_characters,...}`. Each message is independent. Requires a checkpoint containing learned updates.
+- GET `/api/chat/runs/{id}/download` returns one `.pt` inference export containing both grounding and chat. `/api/predict` accepts unified chat run IDs using the latest checkpoint, and both original grounding models and combined models load in the browser CLI.

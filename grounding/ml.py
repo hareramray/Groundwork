@@ -15,6 +15,27 @@ from torch.nn import functional as F
 
 PREPROCESSING = "rgb-exif-transpose-bilinear-square-minus1-plus1-v1"
 ARCHITECTURE = "cnn-gru-spatial-cross-attention-v1"
+CHAT_ARCHITECTURE = "cnn-gru-grounding-chat-v2"
+SUPPORTED_ARCHITECTURES = {ARCHITECTURE, CHAT_ARCHITECTURE}
+
+
+def chat_vocabulary_size(state: dict) -> int:
+    """Validate the optional response head while retaining legacy grounding files."""
+    if state.get("architecture") == ARCHITECTURE:
+        if state.get("chat_tokenizer") is not None:
+            raise ValueError("A chat head requires the grounding + chat architecture")
+        return 0
+    if state.get("architecture") != CHAT_ARCHITECTURE:
+        raise ValueError("Unsupported model architecture")
+    tokenizer = state.get("chat_tokenizer")
+    if not isinstance(tokenizer, dict):
+        raise ValueError("The grounding + chat model is missing its chat tokenizer")
+    characters = tokenizer.get("characters")
+    if (not isinstance(characters, list) or not characters or
+            any(not isinstance(char, str) or len(char) != 1 for char in characters) or
+            len(characters) != len(set(characters)) or tokenizer.get("max_characters") != 500):
+        raise ValueError("Invalid chat tokenizer")
+    return len(characters) + 4
 
 
 class Tokenizer:
@@ -58,7 +79,7 @@ def preprocess_image(image: Image.Image | str | Path, image_size: int) -> torch.
 
 
 class Grounder(nn.Module):
-    def __init__(self, vocab_size: int, class_count: int, config: dict):
+    def __init__(self, vocab_size: int, class_count: int, config: dict, chat_vocabulary_size: int = 0):
         super().__init__()
         width, dim = config["width"], config["text_dim"]
         layers: list[nn.Module] = []
@@ -76,6 +97,26 @@ class Grounder(nn.Module):
         self.box_head = nn.Linear(dim, 4)
         self.class_head = nn.Linear(dim, class_count)
         self.presence_head = nn.Linear(dim, 1)
+        if chat_vocabulary_size:
+            self.chat_embedding = nn.Embedding(chat_vocabulary_size, dim, padding_idx=0)
+            self.chat_decoder = nn.GRU(dim, dim, batch_first=True)
+            self.chat_output = nn.Linear(dim, chat_vocabulary_size)
+
+    def encode_chat(self, prompts: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
+        """Chat prompts use the very same GRU that encodes grounding instructions."""
+        outputs, _ = self.text_encoder(self.chat_embedding(prompts))
+        return outputs[torch.arange(prompts.shape[0], device=prompts.device),
+                       lengths.to(prompts.device) - 1].unsqueeze(0)
+
+    def chat_forward(self, prompts: torch.Tensor, lengths: torch.Tensor,
+                     reply_inputs: torch.Tensor) -> torch.Tensor:
+        hidden = self.encode_chat(prompts, lengths)
+        decoded, _ = self.chat_decoder(self.chat_embedding(reply_inputs), hidden)
+        return self.chat_output(decoded)
+
+    def chat_decode_step(self, previous: torch.Tensor, hidden: torch.Tensor):
+        decoded, hidden = self.chat_decoder(self.chat_embedding(previous), hidden)
+        return self.chat_output(decoded[:, -1]), hidden
 
     def forward(self, images: torch.Tensor, tokens: torch.Tensor, lengths: torch.Tensor) -> dict:
         visual = self.image_encoder(images)
@@ -97,6 +138,29 @@ class Grounder(nn.Module):
         return {"bbox": torch.cat((lower, upper), dim=-1),
                 "class_logits": self.class_head(fused),
                 "presence_logits": self.presence_head(fused).squeeze(-1)}
+
+
+def generate_chat_reply(model: Grounder, tokenizer: dict, message: str) -> dict:
+    if not isinstance(message, str) or not message.strip() or len(message.strip()) > 500:
+        raise ValueError("Provide a chat message of 1 to 500 characters")
+    message = message.strip()
+    characters = tokenizer["characters"]
+    lookup = {char: index + 4 for index, char in enumerate(characters)}
+    device = model.chat_embedding.weight.device
+    prompts = torch.tensor([[lookup.get(char, 3) for char in message] + [2]], device=device)
+    reply = []
+    with torch.inference_mode():
+        hidden = model.encode_chat(prompts, torch.tensor([prompts.shape[1]], device=device))
+        previous = torch.tensor([[1]], device=device)
+        for _ in range(500):
+            scores, hidden = model.chat_decode_step(previous, hidden)
+            scores[:, [0, 1, 3]] = -torch.inf
+            token = int(scores.argmax(dim=-1).item())
+            if token == 2:
+                break
+            reply.append(characters[token - 4])
+            previous = torch.tensor([[token]], device=device)
+    return {"reply": "".join(reply), "unknown_characters": sum(char not in lookup for char in message)}
 
 
 def box_iou_giou(predicted: torch.Tensor, target: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
